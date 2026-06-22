@@ -35,6 +35,7 @@ export default function Branches() {
   const [commitMessage, setCommitMessage] = useState('')
   const [filterComponentId, setFilterComponentId] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
 
   const [uniqueStatus, setUniqueStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle')
   const [uniqueMessage, setUniqueMessage] = useState('')
@@ -158,6 +159,7 @@ export default function Branches() {
 
   const filteredBranches = branches.filter((b) => {
     if (filterComponentId && b.componentId !== filterComponentId) return false
+    if (filterStatus && b.status !== filterStatus) return false
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
       return (
@@ -377,6 +379,22 @@ export default function Branches() {
                   {components.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="relative">
+                <GitBranch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="input-field h-10 pl-10 pr-8 rounded-lg text-sm appearance-none cursor-pointer"
+                >
+                  <option value="">全部状态</option>
+                  {Object.entries(statusMap).map(([key, config]) => (
+                    <option key={key} value={key}>
+                      {config.label}
                     </option>
                   ))}
                 </select>

@@ -16,24 +16,27 @@ const typeConfig: Record<OperationLog['type'], { label: string; color: string; b
 }
 
 export default function Logs() {
-  const { logs, loadLogs, loading } = useAppStore()
+  const { logs, users, loadLogs, loadUsers, loading } = useAppStore()
   const [filterType, setFilterType] = useState<string>('all')
   const [filterSuccess, setFilterSuccess] = useState<string>('all')
+  const [filterOperator, setFilterOperator] = useState<string>('all')
 
   useEffect(() => {
     loadLogs({ limit: 100 })
-  }, [loadLogs])
+    loadUsers()
+  }, [loadLogs, loadUsers])
 
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
       if (filterType !== 'all' && log.type !== filterType) return false
+      if (filterOperator !== 'all' && log.operator !== filterOperator) return false
       if (filterSuccess !== 'all') {
         const success = filterSuccess === 'true'
         if (log.success !== success) return false
       }
       return true
     })
-  }, [logs, filterType, filterSuccess])
+  }, [logs, filterType, filterSuccess, filterOperator])
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp)
@@ -88,6 +91,21 @@ export default function Logs() {
               {Object.entries(typeConfig).map(([key, config]) => (
                 <option key={key} value={key}>
                   {config.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-400">操作人:</label>
+            <select
+              value={filterOperator}
+              onChange={(e) => setFilterOperator(e.target.value)}
+              className="input-field px-3 py-1.5 rounded-lg text-sm"
+            >
+              <option value="all">全部操作人</option>
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name}
                 </option>
               ))}
             </select>

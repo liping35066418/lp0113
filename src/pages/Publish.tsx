@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useAppStore } from '@/lib/store'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -16,6 +16,7 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronUp,
+  Clock,
 } from 'lucide-react'
 
 const statusLabels: Record<Branch['status'], string> = {
@@ -37,13 +38,17 @@ interface BranchCardProps {
   environment: 'test' | 'prod'
   onPublish: (branch: Branch) => Promise<void>
   publishing: boolean
+  lastTestPublishTime?: string
 }
 
-function BranchCard({ branch, environment, onPublish, publishing }: BranchCardProps) {
+function BranchCard({ branch, environment, onPublish, publishing, lastTestPublishTime }: BranchCardProps) {
   const [compatResult, setCompatResult] = useState<CompatibilityCheckResult | null>(null)
   const [checkingCompat, setCheckingCompat] = useState(false)
   const [showIssues, setShowIssues] = useState(false)
   const { addToast } = useAppStore()
+
+  const isProd = environment === 'prod'
+  const canPublishProd = isProd && lastTestPublishTime
 
   const handlePublish = async () => {
     if (environment === 'prod') {
@@ -104,6 +109,17 @@ function BranchCard({ branch, environment, onPublish, publishing }: BranchCardPr
               {statusLabels[branch.status]}
             </span>
           </div>
+          {isProd && (
+            <div className="flex items-center gap-1.5 mb-3">
+              <Clock className="w-3 h-3 text-slate-400" />
+              <span className="text-xs text-slate-400">
+                最近测试发布：
+                {lastTestPublishTime
+                  ? new Date(lastTestPublishTime).toLocaleString('zh-CN')
+                  : '未发布过测试环境'}
+              </span>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             {branch.compatibilityChecked ? (
               <span className="flex items-center gap-1 text-xs text-emerald-400">
@@ -120,7 +136,8 @@ function BranchCard({ branch, environment, onPublish, publishing }: BranchCardPr
         </div>
         <button
           onClick={handlePublish}
-          disabled={publishing || checkingCompat}
+          disabled={publishing || checkingCompat || (isProd && !canPublishProd)}
+          title={isProd && !canPublishProd ? '请先在测试环境发布' : ''}
           className={cn(
             'flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg',
             btnBg,
@@ -173,6 +190,7 @@ interface EnvironmentColumnProps {
   onPublish: (branch: Branch) => Promise<void>
   publishingId: string | null
   isLoading: boolean
+  lastTestPublishTimes?: Record<string, string>
 }
 
 function EnvironmentColumn({
@@ -183,6 +201,7 @@ function EnvironmentColumn({
   onPublish,
   publishingId,
   isLoading,
+  lastTestPublishTimes,
 }: EnvironmentColumnProps) {
   const isTest = environment === 'test'
   const iconBg = isTest ? 'bg-blue-500/20' : 'bg-purple-500/20'
@@ -240,6 +259,7 @@ function EnvironmentColumn({
                 environment={environment}
                 onPublish={onPublish}
                 publishing={publishingId === branch.id}
+                lastTestPublishTime={lastTestPublishTimes?.[branch.id]}
               />
             ))}
           </div>
@@ -250,19 +270,37 @@ function EnvironmentColumn({
 }
 
 export default function Publish() {
-  const { branches, loadBranches, addToast, loading } = useAppStore()
+  const { branches, publishRecords, loadBranches, loadPublishRecords, addToast, loading } = useAppStore()
   const [publishingId, setPublishingId] = useState<string | null>(null)
 
   useEffect(() => {
     loadBranches()
-  }, [loadBranches])
+    loadPublishRecords()
+  }, [loadBranches, loadPublishRecords])
 
-  const pendingBranches = branches.filter(
-    (b) => b.status === 'ready' || b.status === 'testing',
-  )
+  const testBranches = useMemo(() => {
+    return branches.filter((b) => b.status === 'developing' || b.status === 'testing')
+  }, [branches])
+
+  const prodBranches = useMemo(() => {
+    return branches.filter((b) => b.status === 'ready')
+  }, [branches])
+
+  const lastTestPublishTimes = useMemo(() => {
+    const result: Record<string, string> = {}
+    publishRecords.forEach((record) => {
+      if (record.environment === 'test' && record.status === 'success') {
+        if (!result[record.branchId] || record.operatedAt > result[record.branchId]) {
+          result[record.branchId] = record.operatedAt
+        }
+      }
+    })
+    return result
+  }, [publishRecords])
 
   const handleRefresh = () => {
     loadBranches()
+    loadPublishRecords()
   }
 
   const handlePublishTest = async (branch: Branch) => {
@@ -272,6 +310,7 @@ export default function Publish() {
       if (res.code === 200 && res.data.success) {
         addToast('success', `${branch.componentName} 已成功发布到测试环境`)
         await loadBranches()
+        await loadPublishRecords()
       } else {
         addToast('error', res.data.message || '发布失败')
       }
@@ -287,6 +326,7 @@ export default function Publish() {
       if (res.code === 200 && res.data.success) {
         addToast('success', `${branch.componentName} 已成功发布到生产环境`)
         await loadBranches()
+        await loadPublishRecords()
       } else {
         if (res.data.compatibilityCheck && !res.data.compatibilityCheck.passed) {
           addToast('error', '兼容性校验未通过，无法发布')
@@ -320,19 +360,20 @@ export default function Publish() {
           title="测试环境"
           subtitle="Test Environment"
           environment="test"
-          branches={pendingBranches}
+          branches={testBranches}
           onPublish={handlePublishTest}
           publishingId={publishingId}
-          isLoading={!!loading.branches}
+          isLoading={!!loading.branches || !!loading.publishRecords}
         />
         <EnvironmentColumn
           title="生产环境"
           subtitle="Production Environment"
           environment="prod"
-          branches={pendingBranches}
+          branches={prodBranches}
           onPublish={handlePublishProd}
           publishingId={publishingId}
-          isLoading={!!loading.branches}
+          isLoading={!!loading.branches || !!loading.publishRecords}
+          lastTestPublishTimes={lastTestPublishTimes}
         />
       </div>
     </div>
