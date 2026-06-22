@@ -31,6 +31,11 @@ router.get('/', authMiddleware, async (req: Request, res: Response): Promise<voi
 
 router.post('/simulate/duplicate-branch', authMiddleware, async (_req: Request, res: Response): Promise<void> => {
   const operatorId = 'u2'
+  const existingBranch = store.branches.findByComponentAndName('c1', 'feature-test-sim')
+  if (existingBranch) {
+    store.branches.remove(existingBranch.id)
+  }
+
   const result1 = branchService.createBranch({
     componentId: 'c1',
     branchName: 'feature-test-sim',
@@ -47,6 +52,10 @@ router.post('/simulate/duplicate-branch', authMiddleware, async (_req: Request, 
     operatorId,
   })
 
+  if (result1.data) {
+    store.branches.remove(result1.data.id)
+  }
+
   const logs = store.logs.list().slice(0, 10)
 
   res.status(200).json({
@@ -62,6 +71,11 @@ router.post('/simulate/duplicate-branch', authMiddleware, async (_req: Request, 
 
 router.post('/simulate/permission-denied', authMiddleware, async (_req: Request, res: Response): Promise<void> => {
   const operatorId = 'u4'
+
+  const existingBranch = store.branches.findByComponentAndName('c2', 'feature-perm-test')
+  if (existingBranch) {
+    store.branches.remove(existingBranch.id)
+  }
 
   const createResult = branchService.createBranch({
     componentId: 'c2',

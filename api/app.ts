@@ -1,6 +1,7 @@
 import express, {
   type Request,
   type Response,
+  type NextFunction,
 } from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
@@ -39,19 +40,20 @@ app.use(
   },
 )
 
-app.use((error: Error, _req: Request, res: Response): void => {
-  console.error('Server error:', error)
-  res.status(500).json({
-    code: 500,
-    message: 'Server internal error',
-    data: null,
-  })
-})
-
 app.use((req: Request, res: Response) => {
   res.status(404).json({
     code: 404,
     message: 'API not found',
+    data: null,
+  })
+})
+
+app.use((error: Error, _req: Request, res: Response, _next: NextFunction): void => {
+  void _next
+  console.error('Server error:', error)
+  res.status(500).json({
+    code: 500,
+    message: 'Server internal error',
     data: null,
   })
 })

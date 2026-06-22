@@ -26,7 +26,7 @@ export default function Toasts() {
         return (
           <div
             key={toast.id}
-            className={['flex items-center gap-3 px-4 py-3 rounded-lg border bg-gradient-to-r shadow-lg animate-slide-in min-w-[280px', colors].join(' ')}
+            className={['flex items-center gap-3 px-4 py-3 rounded-lg border bg-gradient-to-r shadow-lg animate-slide-in min-w-[280px]', colors].join(' ')}
           >
             <Icon className="w-5 h-5 flex-shrink-0" />
             <p className="text-sm text-white flex-1">{toast.message}</p>
